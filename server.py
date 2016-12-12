@@ -3,13 +3,15 @@ import socket
 from base64 import b64encode
 from hashlib import sha1
 
+# Create a TCP server socket on port 8887
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-print(sock.bind((socket.gethostbyname(socket.gethostname()), 8887)))
+host = (socket.gethostbyname(socket.gethostname()), 8887) # Bind the socket to the computer's IP
+sock.bind(host)
 sock.listen(5)
  
-print("TCPServer Waiting for client on port 8887")
- 
-import sys
+print("TCP socket listening on " + host)
+
+# All this bullshit might only be necessary for the first byte of the message.
 
 def bitlen(n):	# Return the length in bits of a number (number of digits when represented in binary)
 	l = 0
@@ -18,19 +20,21 @@ def bitlen(n):	# Return the length in bits of a number (number of digits when re
 		l += 1
 	return l
 
-def to_bits(str):
-	data = ""
+def to_bits(str): 	# Takes a string and turns it into a string of bits, like '00001101'. Inefficient, as it effectively multiplies the length by 8.
+	data = ""		# Every character will be represented as 8 bits, including leading zeros. So '\x01' -> '00000001'
 	for c in str:
 		c = ord(c)
-		b = bin(c)[2:]
-		data += '0'*(8-bitlen(c)
-	
-def unmask(msg):
+		b = bin(c)[2:] # remove the '0b'
+		data += '0'*(8-bitlen(c))+b # Add the leading zeros
+	return data
+
+# This might be far more efficient if implemented to work directly on the bits.
+def unmask(msg): # where msg is a string of bits like that from to_bits. Returns the payload portion of the message, unmasked.
 	len = msg[9:9+7+64+1]
 	key = msg[16+128:48+128] # Not sure these indices are right... goin ta sleep
 	# Server messages are not masked
 	# Client messages are masked according to sec 5.3 of RFC 6455
-	# All of this has to be done with a byte array
+	# All of this has to be done with a bit array
  
 data = ''
 header = ''
@@ -59,18 +63,5 @@ while True:
 print("All handshaken!")
 while True:
 	tmp = str(client.recv(128)) # We want to handle this as a string of bits, but python 2.7 will only give a regular string
-						# And so we str it for compatibility and convert.
-	data += tmp;
-		
-	validated = []
- 
-	msgs = data.split('\xff')
-	data = msgs.pop()
- 
-	for msg in msgs:
-		if msg[0] == '\x00':
-			validated.append(msg[1:])
- 
-	for v in validated:
-		print(v)
-		client.send('\x00' + v + '\xff')
+	data = unmask(to_bits(tmp)) # And so we str it for compatibility and convert.
+	
