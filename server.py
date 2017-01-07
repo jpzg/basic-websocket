@@ -9,7 +9,7 @@ host = (socket.gethostbyname(socket.gethostname()), 8887) # Bind the socket to t
 sock.bind(host)
 sock.listen(5)
  
-print("TCP socket listening on " + host)
+print("TCP socket listening on " + str(host))
 
 # All this bullshit might only be necessary for the first byte of the message.
 
@@ -28,14 +28,50 @@ def to_bits(str): 	# Takes a string and turns it into a string of bits, like '00
 		data += '0'*(8-bitlen(c))+b # Add the leading zeros
 	return data
 
-# This might be far more efficient if implemented to work directly on the bits.
-def unmask(msg): # where msg is a string of bits like that from to_bits. Returns the payload portion of the message, unmasked.
-	len = msg[9:9+7+64+1]
-	key = msg[16+128:48+128] # Not sure these indices are right... goin ta sleep
+def chars_to_int(data): # takes an array of chars and returns an integer representing them
+	n = 0
+	for e in data:
+		n << 8
+		n += ord(e)
+	return n
+
+def unmask(msg, key): # where msg is a string.
+	#len = msg[9:9+7+64+1] 
+	#key = msg[16+128:48+128] # These are bit indices. I think we need bytes instead.
 	# Server messages are not masked
 	# Client messages are masked according to sec 5.3 of RFC 6455
 	# All of this has to be done with a bit array
- 
+	print "not yet implemented"
+	throw(Exception)
+	
+def parse(msg):
+	data = []
+	for e in msg:
+		data.append(e) # Convert the message string to an array (makes things slightly neater)
+		
+	first_byte = to_bits(data.pop(0)) # Contains FIN bit, RSV bits, and opcode
+	mask = 1 if data[0] > 127 else 0 # see if the first bit is 1. It should be.
+	paylen_bits = to_bits(data[0])
+	payload_len = ord(data.pop(0))
+	payload_len = payload_len if payload_len < 126 else payload_len - 128 # -128 removes the first bit
+	payload_len_ext = ['\x00']	
+	if payload_len == 126 or payload_len == 127:
+		payload_len_ext = data[0:2] # 7+16 bit payload length
+		del data[0:2]
+		if payload_len == 127:
+			payload_len_ext = data[0:6] # 7+64 bit payload length
+			del data[0:6]
+	masking_key = data[0:4]
+	del data[0:4] # All that's left now is payload data
+	
+	print "First byte: " + str(first_byte)
+	print "Masking bit: " + str(mask)
+	print "Payload length: " + paylen_bits
+	print "Payload length (int): " + str(payload_len)
+	print "Extended payload length (int): " + str(chars_to_int(payload_len_ext))
+	print "Masking key: " + str(masking_key)
+	print "Actual payload length: " + str(len(data))
+	
 data = ''
 header = ''
 
@@ -62,6 +98,6 @@ while True:
 
 print("All handshaken!")
 while True:
-	tmp = str(client.recv(128)) # We want to handle this as a string of bits, but python 2.7 will only give a regular string
-	data = unmask(to_bits(tmp)) # And so we str it for compatibility and convert.
+	tmp = str(client.recv(8192)) # We want to handle this as a string of bits, but python 2.7 will only give a regular string
+	parse(tmp)
 	
