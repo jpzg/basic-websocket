@@ -35,11 +35,11 @@ def chars_to_int(data): # takes an array of chars and returns an integer represe
 		n += ord(e)
 	return n
 
-def unmask(data, key): # data and key are arrays of characters.
+def unmask(data, key, index=0): # data and key are strings or arrays of characters. index is for unamasking only part of the data.
 	unmasked = ""
 	key_length = len(key)
-	for i in range(0,len(data):
-		unmasked += chr(ord(data[i]) ^ ord(masking_key[i % key_length]))
+	for i in range(index,len(data)+index):
+		unmasked += chr(ord(data[i-index]) ^ ord(key[i % key_length]))
 	return unmasked
 	
 def parse(msg): # Takes a websocket frame and returns a tuple containing the first byte in a string representation (like "1101"), the masking bit, the payload length, the masking key or None, and the data.
@@ -91,6 +91,8 @@ while True:
 
 print("All handshaken!")
 while True:
-	tmp = str(client.recv(13)) 	# We want to handle this as a string of bits, but python 2.7 will only give a regular string
-	parse(tmp) 					# 13 is the maximum length of the websocket header bits. TODO: Handle short messages properly.
-	
+	tmp = str(client.recv(14)) 	# str() is for python3 compatibility. 14 is the maximum length of the header section of a frame.
+	fin,mask,length,key,data = parse(tmp)
+	tmp = str(client.recv(length-len(data))) # receive the rest of the data
+	message = unmask(data,key) + unmask(tmp,key,index=len(data)) # unmask them separately because data is a chr array but tmp is a string
+	print(message)
