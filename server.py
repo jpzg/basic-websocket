@@ -35,42 +35,35 @@ def chars_to_int(data): # takes an array of chars and returns an integer represe
 		n += ord(e)
 	return n
 
-def unmask(msg, key): # where msg is a string.
-	#len = msg[9:9+7+64+1] 
-	#key = msg[16+128:48+128] # These are bit indices. I think we need bytes instead.
-	# Server messages are not masked
-	# Client messages are masked according to sec 5.3 of RFC 6455
-	# All of this has to be done with a bit array
-	print "not yet implemented"
-	throw(Exception)
+def unmask(data, key): # data and key are arrays of characters.
+	unmasked = ""
+	key_length = len(key)
+	for i in range(0,len(data):
+		unmasked += chr(ord(data[i]) ^ ord(masking_key[i % key_length]))
+	return unmasked
 	
-def parse(msg):
+def parse(msg): # Takes a websocket frame and returns a tuple containing the first byte in a string representation (like "1101"), the masking bit, the payload length, the masking key or None, and the data.
 	data = []
 	for e in msg:
 		data.append(e) # Convert the message string to an array (makes things slightly neater)
 		
 	first_byte = to_bits(data.pop(0)) # Contains FIN bit, RSV bits, and opcode
-	mask = 1 if data[0] > 127 else 0 # see if the first bit is 1. It should be.
-	paylen_bits = to_bits(data[0])
+	mask = 1 if data[0] > 127 else 0 # see if the first bit is 1. It should be, since this is a server implementation
 	payload_len = ord(data.pop(0))
-	payload_len = payload_len if payload_len < 126 else payload_len - 128 # -128 removes the first bit
-	payload_len_ext = ['\x00']	
-	if payload_len == 126 or payload_len == 127:
-		payload_len_ext = data[0:2] # 7+16 bit payload length
+	payload_len = payload_len if payload_len < 128 else payload_len - 128 # -128 removes the first bit
+	if payload_len == 126:
+		payload_len = chars_to_int(data[0:2]) # 7+16 bit payload length
 		del data[0:2]
-		if payload_len == 127:
-			payload_len_ext = data[0:6] # 7+64 bit payload length
-			del data[0:6]
-	masking_key = data[0:4]
-	del data[0:4] # All that's left now is payload data
+	elif payload_len == 127:
+		payload_len = chars_to_int(data[0:8]) # 7+64 bit payload length
+		del data[0:8]
+	if mask:
+		masking_key = data[0:4]
+		del data[0:4] # All that's left now is payload data
+	else:
+		masking_key = None
 	
-	print "First byte: " + str(first_byte)
-	print "Masking bit: " + str(mask)
-	print "Payload length: " + paylen_bits
-	print "Payload length (int): " + str(payload_len)
-	print "Extended payload length (int): " + str(chars_to_int(payload_len_ext))
-	print "Masking key: " + str(masking_key)
-	print "Actual payload length: " + str(len(data))
+	return (first_byte,mask,payload_len,masking_key,data)
 	
 data = ''
 header = ''
@@ -98,6 +91,6 @@ while True:
 
 print("All handshaken!")
 while True:
-	tmp = str(client.recv(8192)) # We want to handle this as a string of bits, but python 2.7 will only give a regular string
-	parse(tmp)
+	tmp = str(client.recv(13)) 	# We want to handle this as a string of bits, but python 2.7 will only give a regular string
+	parse(tmp) 					# 13 is the maximum length of the websocket header bits. TODO: Handle short messages properly.
 	
